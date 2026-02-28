@@ -1049,7 +1049,6 @@ function renderNotes() {
       </div>
     </div>
   `).join('');
-  initNotesDrag();
 }
 
 function openAddNote() {
@@ -1301,15 +1300,20 @@ function uid() {
 // ═══════════════════════════════════════════════════
 const LONG_PRESS_MS = 500;
 
+// Global flag — blocks any click anywhere for 300ms after any drag ends
+let dragJustDone = false;
+document.addEventListener('click', e => {
+  if (dragJustDone) e.stopPropagation();
+}, true);
+
 function makeDraggable(container, getItems, onReorder) {
   let pressTimer  = null;
   let dragging    = null;
   let ghost       = null;
-  let cachedItems = null;   // cached at drag start
+  let cachedItems = null;
   let ghostStartX = 0, ghostStartY = 0;
   let startX      = 0, startY = 0;
   let moved       = false;
-  let blockClick  = false;
 
   function startPress(e, el) {
     moved = false;
@@ -1352,12 +1356,10 @@ function makeDraggable(container, getItems, onReorder) {
     if (!dragging) return;
     e.preventDefault();
 
-    // GPU-accelerated positioning via transform
     const tx = touch.clientX - startX;
     const ty = touch.clientY - startY;
     ghost.style.transform = `translate(${tx}px, ${ty}px) rotate(3deg) scale(1.03)`;
 
-    // highlight insertion target using cached items
     cachedItems.forEach(item => item.classList.remove('drag-over'));
     const target = getTargetItem(touch, cachedItems);
     if (target && target !== dragging) target.classList.add('drag-over');
@@ -1383,9 +1385,9 @@ function makeDraggable(container, getItems, onReorder) {
     ghost       = null;
     cachedItems = null;
 
-    // block the synthetic click that fires after touchend
-    blockClick = true;
-    setTimeout(() => { blockClick = false; }, 300);
+    // Block any synthetic click fired after touchend — globally
+    dragJustDone = true;
+    setTimeout(() => { dragJustDone = false; }, 300);
   }
 
   function getTargetItem(touch, items) {
@@ -1414,11 +1416,6 @@ function makeDraggable(container, getItems, onReorder) {
     if (ghost)    ghost.remove();
     dragging = null; ghost = null; cachedItems = null;
   });
-
-  // suppress the post-drag synthetic click
-  container.addEventListener('click', e => {
-    if (blockClick) e.stopPropagation();
-  }, true);
 }
 
 // ── Wire up Services drag
