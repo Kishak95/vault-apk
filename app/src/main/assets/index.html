@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Vault</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --bg-top:    #7C3AED;
+  --bg-mid:    #4C1D95;
+  --bg-bot:    #0D0820;
+  --card:      rgba(255,255,255,0.10);
+  --card-hi:   rgba(255,255,255,0.16);
+  --border:    rgba(255,255,255,0.15);
+  --accent:    #A78BFA;
+  --accent2:   #7C3AED;
+  --text:      #FFFFFF;
+  --text2:     rgba(255,255,255,0.60);
+  --danger:    #F87171;
+  --success:   #34D399;
+  --nav-h:     64px;
+  --radius:    16px;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  background: linear-gradient(170deg, var(--bg-top) 0%, var(--bg-mid) 40%, var(--bg-bot) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── LOCK SCREEN ── */
+#lockScreen {
+  position: fixed; inset: 0; z-index: 999;
+  background: linear-gradient(170deg, var(--bg-top) 0%, var(--bg-mid) 40%, var(--bg-bot) 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px 24px; gap: 24px;
+}
+.lock-orb {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px;
+  box-shadow: 0 8px 32px rgba(124,58,237,0.6);
+  margin-bottom: 8px;
+}
+.lock-title { font-size: 28px; font-weight: 700; }
+.lock-sub   { font-size: 14px; color: var(--text2); text-align: center; }
+.lock-input-wrap {
+  width: 100%; max-width: 320px; position: relative;
+}
+.lock-input {
+  width: 100%; padding: 16px 48px 16px 16px;
+  background: rgba(255,255,255,0.12); border: 1.5px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 16px;
+  outline: none; transition: border-color .2s;
+}
+.lock-input::placeholder { color: var(--text2); }
+.lock-input:focus { border-color: var(--accent); }
+.eye-btn {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer;
+}
+.lock-btn {
+  width: 100%; max-width: 320px; padding: 16px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  border: none; border-radius: var(--radius);
+  color: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.5); transition: opacity .2s;
+}
+.lock-btn:active { opacity: .85; }
+.lock-err { color: var(--danger); font-size: 13px; min-height: 20px; }
+
+/* ── LAYOUT ── */
+#app { display:none; height:100vh; flex-direction:column; }
+#app.visible { display:flex; }
+
+/* decorative bg circles */
+.bg-deco {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 0;
+  background: rgba(167,139,250,0.08);
+}
+.bg-deco.d1 { width:320px; height:320px; top:-80px; right:-80px; }
+.bg-deco.d2 { width:200px; height:200px; bottom:100px; left:-60px; }
+
+/* ── TOP BAR ── */
+.topbar {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+  background: rgba(124,58,237,0.25);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.topbar-title { font-size: 20px; font-weight: 700; letter-spacing:.5px; }
+.topbar-lock {
+  background: rgba(255,255,255,0.12); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 14px; color: var(--text2);
+  font-size: 12px; cursor: pointer; display:flex; align-items:center; gap:5px;
+}
+.topbar-lock:active { background: rgba(255,255,255,0.2); }
+.dot-status {
+  width:7px; height:7px; border-radius:50%; background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+/* ── SCROLL AREA ── */
+.scroll-area {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 16px 16px calc(var(--nav-h) + 16px);
+  position: relative; z-index: 1;
+}
+.scroll-area::-webkit-scrollbar { display:none; }
+
+/* ── SCREENS ── */
+.screen { display: none; animation: fadeUp .25s ease; }
+.screen.active { display: block; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: rgba(13,8,32,0.85); backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  display: flex; z-index: 100;
+}
+.nav-item {
+  flex: 1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:3px;
+  cursor:pointer; color: var(--text2); transition: color .2s;
+  position: relative;
+}
+.nav-item.active { color: var(--accent); }
+.nav-item.active::before {
+  content:''; position:absolute; top:0; left:20%; right:20%; height:2px;
+  background: var(--accent); border-radius:0 0 4px 4px;
+}
+.nav-icon  { font-size: 22px; line-height:1; }
+.nav-label { font-size: 10px; font-weight:600; letter-spacing:.3px; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--card); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px; margin-bottom: 12px;
+}
+.card-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+  color: var(--accent); text-transform: uppercase; margin-bottom: 14px;
+}
+
+/* ── INPUTS ── */
+.field { margin-bottom: 14px; }
+.field label { font-size: 12px; color: var(--text2); margin-bottom: 6px; display:block; }
+.field input, .field textarea {
+  width: 100%; padding: 13px 14px;
+  background: rgba(255,255,255,0.08); border: 1.5px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 15px; outline: none;
+  transition: border-color .2s; font-family: inherit;
+}
+.field input::placeholder, .field textarea::placeholder { color: var(--text2); }
+.field input:focus, .field textarea:focus { border-color: var(--accent); }
+.field textarea { resize: vertical; min-height: 100px; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 12px 18px; border-radius: 10px; font-size: 14px; font-weight: 600;
+  border: none; cursor: pointer; transition: opacity .15s, transform .1s;
+  white-space: nowrap;
+}
+.btn:active { opacity:.8; transform:scale(.97); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  color: #fff; box-shadow: 0 4px 16px rgba(124,58,237,0.4);
+}
+.btn-ghost {
+  background: rgba(255,255,255,0.10); border: 1px solid var(--border); color: var(--text);
+}
+.btn-danger { background: rgba(248,113,113,0.2); border: 1px solid rgba(248,113,113,0.3); color: var(--danger); }
+.btn-sm { padding: 8px 14px; font-size: 13px; }
+.btn-full { width: 100%; }
+
+/* ── STAT ROW ── */
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.stat-card {
+  background: var(--card-hi); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; text-align:center;
+}
+.stat-num  { font-size: 32px; font-weight: 700; color: var(--accent); line-height:1; }
+.stat-lbl  { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+/* ── PASSWORD DISPLAY ── */
+.pw-display {
+  background: rgba(0,0,0,0.25); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px;
+  font-family: 'Courier New', monospace; font-size: 15px;
+  word-break: break-all; color: var(--text); min-height: 56px;
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  margin-bottom: 14px; letter-spacing: .5px;
+}
+.pw-placeholder { color: var(--text2); font-family: inherit; }
+
+/* ── SLIDER ── */
+.slider-wrap { margin-bottom: 14px; }
+.slider-lbl  { display:flex; justify-content:space-between; font-size:13px; color:var(--text2); margin-bottom:8px; }
+.slider-lbl span { color: var(--text); font-weight:600; }
+input[type=range] {
+  width:100%; height:6px; border-radius:3px;
+  background: rgba(255,255,255,0.15); outline:none; cursor:pointer;
+  -webkit-appearance:none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+  background: var(--accent); cursor:pointer;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.6);
+}
+.check-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.check-item { display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; }
+.check-item input[type=checkbox] { width:16px; height:16px; accent-color: var(--accent); }
+
+/* ── STRENGTH BAR ── */
+.strength-bar-wrap { 
+  height:6px; border-radius:3px; margin-bottom:16px;
+  background: rgba(124,58,237,0.25);
+  border: 1px solid rgba(124,58,237,0.3);
+}
+.strength-bar { height:100%; border-radius:3px; transition:all .3s; width:0%; }
+
+/* ── SERVICE / ACCOUNT ITEMS ── */
+.svc-item {
+  background: var(--card-hi); border: 1px solid var(--border);
+  border-radius: 14px; margin-bottom: 10px; overflow:hidden;
+}
+.svc-header {
+  display:flex; align-items:center; gap:12px;
+  padding: 14px 16px; cursor:pointer;
+}
+.svc-icon {
+  width:40px; height:40px; border-radius:12px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; flex-shrink:0;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.4);
+}
+.svc-name   { font-size:15px; font-weight:600; flex:1; }
+.svc-count  { font-size:12px; color:var(--text2); }
+.svc-chevron { font-size:12px; color:var(--text2); transition:transform .2s; }
+.svc-item.open .svc-chevron { transform:rotate(180deg); }
+.svc-body   { display:none; border-top:1px solid var(--border); padding:14px 16px; }
+.svc-item.open .svc-body { display:block; }
+
+.acc-item {
+  background: rgba(0,0,0,0.2); border-radius:10px; padding:12px; margin-bottom:8px;
+}
+.acc-row {
+  display:flex; align-items:center; margin-bottom:6px;
+}
+.acc-row:last-child { margin-bottom:0; }
+.acc-lbl  { font-size:11px; color:var(--text2); width:70px; flex-shrink:0; }
+.acc-val  { font-size:13px; flex:1; word-break:break-all; font-family:'Courier New',monospace; }
+.acc-val.masked { letter-spacing:2px; }
+.icon-btn {
+  background:none; border:none; color:var(--accent); font-size:15px;
+  cursor:pointer; padding:4px 6px; flex-shrink:0;
+}
+.icon-btn:active { opacity:.6; }
+.acc-actions { display:flex; gap:6px; margin-top:10px; justify-content:flex-end; }
+
+/* ── NOTES ── */
+.note-item {
+  background: var(--card-hi); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 14px; padding: 16px; margin-bottom: 10px;
+}
+.note-title { font-size:16px; font-weight:600; margin-bottom:6px; }
+.note-body  { font-size:13px; color:var(--text2); line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+.note-meta  { font-size:11px; color:rgba(255,255,255,0.3); margin-top:10px; }
+.note-actions { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
+
+/* ── SETTINGS ── */
+.setting-row {
+  display:flex; align-items:center; gap:12px; padding:14px 0;
+  border-bottom:1px solid rgba(255,255,255,0.07); cursor:pointer;
+}
+.setting-row:last-child { border-bottom:none; }
+.setting-icon { font-size:20px; width:32px; text-align:center; }
+.setting-info { flex:1; }
+.setting-title { font-size:14px; font-weight:600; }
+.setting-sub   { font-size:12px; color:var(--text2); margin-top:2px; }
+.setting-arrow { color:var(--text2); font-size:14px; }
+
+/* ── MODAL ── */
+.modal {
+  position:fixed; inset:0; z-index:500;
+  background:rgba(0,0,0,0.7); backdrop-filter:blur(4px);
+  display:none; align-items:flex-end; padding:0;
+}
+.modal.active { display:flex; }
+.modal-sheet {
+  width:100%; background: #1a0d35;
+  border-radius:24px 24px 0 0; border-top:1px solid var(--border);
+  padding:24px 20px 36px; animation:slideUp .25s ease;
+  max-height:90vh; overflow-y:auto;
+}
+@keyframes slideUp {
+  from { transform:translateY(100%); }
+  to   { transform:translateY(0); }
+}
+.modal-title { font-size:18px; font-weight:700; margin-bottom:20px; }
+.modal-actions { display:flex; gap:10px; margin-top:8px; }
+.modal-actions .btn { flex:1; }
+.modal-handle {
+  width:40px; height:4px; border-radius:2px;
+  background:rgba(255,255,255,0.2); margin:0 auto 20px;
+}
+
+/* ── TOAST ── */
+#toast {
+  position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+  background:rgba(30,20,60,0.95); border:1px solid var(--border);
+  color:var(--text); padding:10px 20px; border-radius:20px;
+  font-size:13px; z-index:9999; opacity:0; transition:opacity .3s;
+  white-space:nowrap; pointer-events:none; max-width:90vw; text-align:center;
+}
+#toast.show { opacity:1; }
+
+/* ── DRAG REORDER ── */
+.drag-ghost {
+  position: fixed; z-index: 9000; pointer-events: none;
+  opacity: 0.92;
+  transform: rotate(3deg) scale(1.03);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 2px var(--accent);
+  border-radius: var(--radius);
+  transition: none;
+}
+.drag-placeholder {
+  opacity: 0.25;
+  transform: scale(0.97);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.drag-over {
+  border-top: 2px solid var(--accent) !important;
+}
+
+
+.empty {
+  text-align:center; padding:48px 20px; color:var(--text2);
+}
+.empty-icon { font-size:48px; margin-bottom:12px; opacity:.4; }
+.empty-msg  { font-size:14px; }
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;
+}
+.section-title { font-size:13px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:1px; }
+
+/* ── PW FIELD WITH EYE ── */
+.pw-field-wrap { position:relative; }
+.pw-field-wrap input { padding-right:44px; }
+.pw-field-eye {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--text2); font-size:16px; cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<!-- BG Decoration -->
+<div class="bg-deco d1"></div>
+<div class="bg-deco d2"></div>
+
+<!-- ═══════════ LOCK SCREEN ═══════════ -->
+<div id="lockScreen">
+  <div class="lock-orb"><img src="./vault-icon.png" style="width:56px;height:56px;border-radius:12px;"></div>
+  <div class="lock-title">Vault</div>
+  <div class="lock-sub" id="lockSub">Enter your master password to unlock</div>
+  <div class="lock-input-wrap">
+    <input class="lock-input" type="password" id="masterInput" placeholder="Master password…" autocomplete="off">
+    <button class="eye-btn" id="lockEye" onclick="toggleLockEye()">👁</button>
+  </div>
+  <div class="lock-err" id="lockErr"></div>
+  <button class="lock-btn" id="lockBtn" onclick="handleLock()">Unlock Vault</button>
+  <button class="lock-btn" id="restoreBtn" onclick="document.getElementById('restoreFile').click()"
+    style="display:none; background:rgba(255,255,255,0.12); box-shadow:none; border:1.5px solid var(--border); color:var(--text); margin-top:-8px;">
+    📂 Restore from Backup
+  </button>
+  <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreFromLockScreen(event)">
+</div>
+
+<!-- ═══════════ APP ═══════════ -->
+<div id="app">
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="topbar-title"><img src="./vault-icon.png" style="width:26px;height:26px;vertical-align:middle;margin-right:7px;border-radius:6px;"> Vault</div>
+    <div class="topbar-lock" onclick="lockApp()">
+      <div class="dot-status"></div>
+      <span>Lock</span>
+    </div>
+  </div>
+
+  <!-- Scroll area with all screens -->
+  <div class="scroll-area">
+
+    <!-- ── GENERATOR ── -->
+    <div class="screen active" id="screen-gen">
+      <div class="card">
+        <div class="card-title">Password Generator</div>
+        <div class="pw-display" id="pwDisplay"><span class="pw-placeholder">Tap Generate</span></div>
+        <div class="strength-bar-wrap"><div id="strengthBar" class="strength-bar"></div></div>
+        <div class="slider-wrap">
+          <div class="slider-lbl">Length <span id="lenVal">16</span></div>
+          <input type="range" id="lenSlider" min="8" max="64" value="16" oninput="onLenChange(this.value)">
+        </div>
+        <div class="check-row">
+          <label class="check-item"><input type="checkbox" id="chkUpper" checked> A–Z</label>
+          <label class="check-item"><input type="checkbox" id="chkLower" checked> a–z</label>
+          <label class="check-item"><input type="checkbox" id="chkNum"   checked> 0–9</label>
+          <label class="check-item"><input type="checkbox" id="chkSym"   checked> !@#</label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="doGenerate()">⚡ Generate</button>
+          <button class="btn btn-ghost"   onclick="doCopyPw()">📋 Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VAULT ── -->
+    <div class="screen" id="screen-vault">
+      <div class="section-header">
+        <div class="section-title">Services</div>
+        <button class="btn btn-primary btn-sm" onclick="openAddSvc()">＋ Service</button>
+      </div>
+      <div id="svcList"></div>
+    </div>
+
+    <!-- ── NOTES ── -->
+    <div class="screen" id="screen-notes">
+      <div class="section-header">
+        <div class="section-title">Notes</div>
+        <button class="btn btn-primary btn-sm" onclick="openAddNote()">＋ Note</button>
+      </div>
+      <div id="noteList"></div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div class="screen" id="screen-settings">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title">Security</div>
+        <div class="setting-row" onclick="openChangePw()">
+          <div class="setting-icon">🔑</div>
+          <div class="setting-info">
+            <div class="setting-title">Change Master Password</div>
+            <div class="setting-sub">Update your vault password</div>
+          </div>
+          <div class="setting-arrow">›</div>
+        </div>
+        <div class="setting-row" onclick="lockApp()">
+          <div class="setting-icon">🔒</div>
+          <div class="setting-info">
+            <div class="setting-title">Lock Vault</div>
+            <div class="setting-sub">Require password to re-enter</div>
+          </div>
+          <div class="setting-arrow">›</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Data</div>
+        <div class="setting-row" onclick="exportVault()">
+          <div class="setting-icon">⬇️</div>
+          <div class="setting-info">
+            <div class="setting-title">Export Vault</div>
+            <div class="setting-sub">Save encrypted backup file</div>
+          </div>
+          <div class="setting-arrow">›</div>
+        </div>
+        <div class="setting-row" onclick="document.getElementById('importFile').click()">
+          <div class="setting-icon">⬆️</div>
+          <div class="setting-info">
+            <div class="setting-title">Import Vault</div>
+            <div class="setting-sub">Restore from backup file</div>
+          </div>
+          <div class="setting-arrow">›</div>
+        </div>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importVault(event)">
+      <div class="card">
+        <div class="card-title">About</div>
+        <div style="font-size:13px;color:var(--text2);text-align:center;padding:8px 0;">
+          By Kishak, All Rights Reserved
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end scroll-area -->
+
+  <!-- Bottom Nav -->
+  <div class="bottom-nav">
+    <div class="nav-item active" id="nav-gen"      onclick="switchTab('gen')">
+      <div class="nav-icon">⚡</div><div class="nav-label">Generate</div>
+    </div>
+    <div class="nav-item"        id="nav-vault"    onclick="switchTab('vault')">
+      <div class="nav-icon">🗄</div><div class="nav-label">Vault</div>
+    </div>
+    <div class="nav-item"        id="nav-notes"    onclick="switchTab('notes')">
+      <div class="nav-icon">📝</div><div class="nav-label">Notes</div>
+    </div>
+    <div class="nav-item"        id="nav-settings" onclick="switchTab('settings')">
+      <div class="nav-icon">⚙️</div><div class="nav-label">Settings</div>
+    </div>
+  </div>
+</div><!-- end app -->
+
+<!-- ═══════════ MODALS ═══════════ -->
+
+<!-- Add Service -->
+<div class="modal" id="modal-svc">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="svcModalTitle">Add Service</div>
+    <div class="field"><label>Service Name</label><input id="svcNameInput" type="text" placeholder="e.g. Gmail, Netflix…"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-svc')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSvc()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Account -->
+<div class="modal" id="modal-acc">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="accModalTitle">Add Account</div>
+    <div class="field"><label>Email</label><input id="accEmail" type="email" placeholder="you@example.com"></div>
+    <div class="field"><label>Username</label><input id="accUser" type="text" placeholder="username"></div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pw-field-wrap">
+        <input id="accPw" type="password" placeholder="password">
+        <button class="pw-field-eye" onclick="toggleEye('accPw',this)">👁</button>
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <button class="btn btn-ghost btn-sm" onclick="fillGenerated()">⚡ Use generated password</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-acc')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAcc()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Note -->
+<div class="modal" id="modal-note">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="noteModalTitle">Add Note</div>
+    <div class="field"><label>Title</label><input id="noteTitle" type="text" placeholder="Note title…"></div>
+    <div class="field"><label>Content</label><textarea id="noteBody" placeholder="Write your note…"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-note')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNote()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password -->
+<div class="modal" id="modal-chpw">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Change Master Password</div>
+    <div class="field">
+      <label>Current Password</label>
+      <div class="pw-field-wrap">
+        <input id="chpwCur" type="password" placeholder="Current password">
+        <button class="pw-field-eye" onclick="toggleEye('chpwCur',this)">👁</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>New Password</label>
+      <div class="pw-field-wrap">
+        <input id="chpwNew" type="password" placeholder="New password (min 4 chars)">
+        <button class="pw-field-eye" onclick="toggleEye('chpwNew',this)">👁</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Confirm New Password</label>
+      <div class="pw-field-wrap">
+        <input id="chpwCon" type="password" placeholder="Confirm new password">
+        <button class="pw-field-eye" onclick="toggleEye('chpwCon',this)">👁</button>
+      </div>
+    </div>
+    <div class="lock-err" id="chpwErr"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-chpw')">Cancel</button>
+      <button class="btn btn-primary" onclick="doChangePw()">Change</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="modal" id="modal-confirm">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="confirmTitle">Are you sure?</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:20px;" id="confirmMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost"   onclick="closeModal('modal-confirm')">Cancel</button>
+      <button class="btn btn-danger"  id="confirmOkBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Password Modal -->
+<div class="modal" id="modal-import-pw">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Enter Backup Password</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Enter the master password used when this backup was created.</div>
+    <div class="field">
+      <label>Backup Password</label>
+      <div class="pw-field-wrap">
+        <input id="importPwInput" type="password" placeholder="Backup password…" autocomplete="off">
+        <button class="pw-field-eye" onclick="toggleEye('importPwInput',this)">👁</button>
+      </div>
+    </div>
+    <div class="lock-err" id="importPwErr"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cancelImport()">Cancel</button>
+      <button class="btn btn-primary" onclick="doImportWithPassword()">Restore</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════
+//  CRYPTO  (Web Crypto API — AES-256-GCM + PBKDF2)
+// ═══════════════════════════════════════════════════
+const STORAGE_KEY  = 'vault_v2';
+const PBKDF2_ITER  = 250000;
+
+async function deriveKey(password, salt) {
+  const enc  = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:PBKDF2_ITER, hash:'SHA-256' },
+    base,
+    { name:'AES-GCM', length:256 },
+    false, ['encrypt','decrypt']
+  );
+}
+
+async function encryptData(plainObj, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKey(password, salt);
+  const plain = new TextEncoder().encode(JSON.stringify(plainObj));
+  const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, plain);
+  return {
+    v: 2,
+    salt: b64(salt),
+    iv:   b64(iv),
+    data: b64(new Uint8Array(cipher)),
+  };
+}
+
+async function decryptData(container, password) {
+  if (!container || container.v !== 2) throw new Error('BAD_VERSION');
+  const salt   = ub64(container.salt);
+  const iv     = ub64(container.iv);
+  const cipher = ub64(container.data);
+  const key    = await deriveKey(password, salt);
+  const plain  = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, cipher);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+function b64(buf) {
+  return btoa(String.fromCharCode(...buf));
+}
+function ub64(str) {
+  return Uint8Array.from(atob(str), c => c.charCodeAt(0));
+}
+
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let masterPw   = null;   // in-memory only
+let vaultData  = { services:[], notes:[] };
+let isNewVault = false;
+
+// temp state for modals
+let editSvcId   = null;
+let editAccSvcId= null;
+let editAccId   = null;
+let editNoteId  = null;
+let lastGenPw   = '';
+
+// ═══════════════════════════════════════════════════
+//  LOCK SCREEN
+// ═══════════════════════════════════════════════════
+function init() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    isNewVault = true;
+    document.getElementById('lockSub').textContent = 'Create a master password to protect your vault';
+    document.getElementById('lockBtn').textContent  = 'Create Vault';
+    document.getElementById('restoreBtn').style.display = 'block';
+  } else {
+    document.getElementById('restoreBtn').style.display = 'none';
+  }
+}
+
+async function handleLock() {
+  const pw  = document.getElementById('masterInput').value;
+  const err = document.getElementById('lockErr');
+  err.textContent = '';
+
+  if (!pw) { err.textContent = 'Password cannot be empty.'; return; }
+
+  if (isNewVault) {
+    if (pw.length < 4) { err.textContent = 'Password must be at least 4 characters.'; return; }
+    masterPw   = pw;
+    vaultData  = { services:[], notes:[] };
+    await saveVault();
+    showApp();
+  } else {
+    const btn = document.getElementById('lockBtn');
+    btn.textContent = 'Unlocking…'; btn.disabled = true;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      vaultData = await decryptData(JSON.parse(raw), pw);
+      masterPw  = pw;
+      showApp();
+    } catch(e) {
+      err.textContent = 'Wrong password. Try again.';
+    } finally {
+      btn.textContent = 'Unlock Vault'; btn.disabled = false;
+    }
+  }
+}
+
+document.getElementById('masterInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleLock();
+});
+
+function toggleLockEye() {
+  const inp = document.getElementById('masterInput');
+  inp.type  = inp.type === 'password' ? 'text' : 'password';
+}
+
+function showApp() {
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('masterInput').value = '';
+  renderVault(); renderNotes(); updateStats();
+  initServicesDrag();
+  initNotesDrag();
+}
+
+function lockApp() {
+  saveVault().then(() => {
+    masterPw  = null;
+    vaultData = { services:[], notes:[] };
+    document.getElementById('lockScreen').style.display = 'flex';
+    document.getElementById('app').classList.remove('visible');
+    document.getElementById('lockErr').textContent = '';
+    document.getElementById('masterInput').value = '';
+    isNewVault = false;
+    init();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  PERSIST
+// ═══════════════════════════════════════════════════
+async function saveVault() {
+  if (!masterPw) return;
+  const enc = await encryptData(vaultData, masterPw);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(enc));
+}
+
+// ═══════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-'+tab).classList.add('active');
+  document.getElementById('nav-'+tab).classList.add('active');
+  if (tab === 'settings') updateStats();
+}
+
+// ═══════════════════════════════════════════════════
+//  GENERATOR
+// ═══════════════════════════════════════════════════
+function onLenChange(v) {
+  document.getElementById('lenVal').textContent = v;
+}
+
+function doGenerate() {
+  const len   = parseInt(document.getElementById('lenSlider').value);
+  const upper = document.getElementById('chkUpper').checked;
+  const lower = document.getElementById('chkLower').checked;
+  const num   = document.getElementById('chkNum').checked;
+  const sym   = document.getElementById('chkSym').checked;
+
+  let pool = '';
+  if (upper) pool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (lower) pool += 'abcdefghijklmnopqrstuvwxyz';
+  if (num)   pool += '0123456789';
+  if (sym)   pool += '!@#$%^&*()-_=+[]{}:,.?/';
+  if (!pool) { toast('Select at least one character type'); return; }
+
+  // cryptographically random
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  let pw = '';
+  for (let i = 0; i < len; i++) pw += pool[arr[i] % pool.length];
+
+  lastGenPw = pw;
+  const el = document.getElementById('pwDisplay');
+  el.textContent = pw;
+  el.style.color = 'var(--text)';
+
+  // strength bar
+  const entropy = Math.log2(Math.pow(pool.length, len));
+  const pct = Math.min(100, (entropy / 128) * 100);
+  const bar = document.getElementById('strengthBar');
+  bar.style.width = pct+'%';
+  bar.style.background = pct < 40 ? 'var(--danger)' : pct < 70 ? '#FBBF24' : 'var(--success)';
+}
+
+function doCopyPw() {
+  if (!lastGenPw) { toast('Generate a password first'); return; }
+  navigator.clipboard.writeText(lastGenPw).then(() => toast('Password copied!'));
+}
+
+function fillGenerated() {
+  if (!lastGenPw) { toast('Generate a password first on the Generate tab'); return; }
+  document.getElementById('accPw').value = lastGenPw;
+  closeModal('modal-acc');
+  // reopen
+  setTimeout(() => openModal('modal-acc'), 100);
+}
+
+// ═══════════════════════════════════════════════════
+//  VAULT — SERVICES
+// ═══════════════════════════════════════════════════
+function renderVault() {
+  const el = document.getElementById('svcList');
+  if (!vaultData.services.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🗄</div><div class="empty-msg">No services yet.<br>Tap + Service to add one.</div></div>`;
+    return;
+  }
+  el.innerHTML = vaultData.services.map(svc => `
+    <div class="svc-item" id="svc-${svc.id}" data-draggable="svc">
+      <div class="svc-header" onclick="toggleSvc('${svc.id}')">
+        <div class="svc-icon">${svcEmoji(svc.name)}</div>
+        <div class="svc-name">${esc(svc.name)}</div>
+        <div class="svc-count">${svc.accounts.length} acc</div>
+        <div class="svc-chevron">▼</div>
+      </div>
+      <div class="svc-body">
+        <div data-svc-accounts="${svc.id}">
+          ${svc.accounts.map(a => accHTML(svc.id, a)).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="openAddAcc('${svc.id}')">＋ Account</button>
+          <button class="btn btn-ghost btn-sm"   onclick="openRenameSvc('${svc.id}','${esc(svc.name)}')">✏️ Rename</button>
+          <button class="btn btn-danger btn-sm"  onclick="confirmDelete('Delete service and all accounts?','deleteSvc','${svc.id}')">🗑 Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  initAccountsDrag();
+}
+
+function accHTML(svcId, a) {
+  return `
+    <div class="acc-item" id="acc-${a.id}" data-draggable="acc">
+      ${a.email ? `<div class="acc-row">
+        <div class="acc-lbl">Email</div>
+        <div class="acc-val">${esc(a.email)}</div>
+        <button class="icon-btn" onclick="copyText('${esc(a.email)}','Email')">📋</button>
+      </div>` : ''}
+      ${a.username ? `<div class="acc-row">
+        <div class="acc-lbl">Username</div>
+        <div class="acc-val">${esc(a.username)}</div>
+        <button class="icon-btn" onclick="copyText('${esc(a.username)}','Username')">📋</button>
+      </div>` : ''}
+      ${a.password ? `<div class="acc-row">
+        <div class="acc-lbl">Password</div>
+        <div class="acc-val masked" id="pw-${a.id}">••••••••</div>
+        <button class="icon-btn" onclick="togglePwVis('${a.id}','${esc(a.password)}')">👁</button>
+        <button class="icon-btn" onclick="copyText('${esc(a.password)}','Password')">📋</button>
+      </div>` : ''}
+      <div class="acc-actions">
+        <button class="btn btn-ghost btn-sm"  onclick="openEditAcc('${svcId}','${a.id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete('Delete this account?','deleteAcc','${svcId}|${a.id}')">🗑</button>
+      </div>
+    </div>`;
+}
+
+function toggleSvc(id) {
+  document.getElementById('svc-'+id).classList.toggle('open');
+}
+
+function svcEmoji(name) {
+  const n = name.toLowerCase();
+  if (n.includes('google') || n.includes('gmail')) return '🔵';
+  if (n.includes('facebook') || n.includes('fb'))  return '🔷';
+  if (n.includes('twitter') || n.includes('x.com')) return '🐦';
+  if (n.includes('github'))  return '🐙';
+  if (n.includes('apple'))   return '🍎';
+  if (n.includes('amazon'))  return '📦';
+  if (n.includes('netflix')) return '🎬';
+  if (n.includes('bank') || n.includes('credit')) return '🏦';
+  if (n.includes('game') || n.includes('steam'))  return '🎮';
+  if (n.includes('work') || n.includes('office')) return '💼';
+  return '🔑';
+}
+
+function togglePwVis(id, pw) {
+  const el = document.getElementById('pw-'+id);
+  if (el.classList.contains('masked')) {
+    el.textContent = pw; el.classList.remove('masked');
+  } else {
+    el.textContent = '••••••••'; el.classList.add('masked');
+  }
+}
+
+// ── Services CRUD
+function openAddSvc() {
+  editSvcId = null;
+  document.getElementById('svcModalTitle').textContent = 'Add Service';
+  document.getElementById('svcNameInput').value = '';
+  openModal('modal-svc');
+  setTimeout(() => document.getElementById('svcNameInput').focus(), 300);
+}
+
+function openRenameSvc(id, name) {
+  editSvcId = id;
+  document.getElementById('svcModalTitle').textContent = 'Rename Service';
+  document.getElementById('svcNameInput').value = name;
+  openModal('modal-svc');
+}
+
+function saveSvc() {
+  const name = document.getElementById('svcNameInput').value.trim();
+  if (!name) { toast('Enter a service name'); return; }
+  if (editSvcId) {
+    const svc = vaultData.services.find(s => s.id === editSvcId);
+    if (svc) svc.name = name;
+  } else {
+    vaultData.services.push({ id: uid(), name, accounts:[] });
+  }
+  closeModal('modal-svc');
+  saveVault().then(() => { renderVault(); updateStats(); toast(editSvcId ? 'Service renamed' : 'Service added'); });
+}
+
+function deleteSvc(id) {
+  vaultData.services = vaultData.services.filter(s => s.id !== id);
+  saveVault().then(() => { renderVault(); updateStats(); toast('Service deleted'); });
+}
+
+// ── Accounts CRUD
+function openAddAcc(svcId) {
+  editAccSvcId = svcId; editAccId = null;
+  document.getElementById('accModalTitle').textContent = 'Add Account';
+  document.getElementById('accEmail').value = '';
+  document.getElementById('accUser').value  = '';
+  document.getElementById('accPw').value    = '';
+  openModal('modal-acc');
+}
+
+function openEditAcc(svcId, accId) {
+  editAccSvcId = svcId; editAccId = accId;
+  const svc = vaultData.services.find(s => s.id === svcId);
+  const acc = svc && svc.accounts.find(a => a.id === accId);
+  if (!acc) return;
+  document.getElementById('accModalTitle').textContent = 'Edit Account';
+  document.getElementById('accEmail').value = acc.email    || '';
+  document.getElementById('accUser').value  = acc.username || '';
+  document.getElementById('accPw').value    = acc.password || '';
+  openModal('modal-acc');
+}
+
+function saveAcc() {
+  const email = document.getElementById('accEmail').value.trim();
+  const user  = document.getElementById('accUser').value.trim();
+  const pw    = document.getElementById('accPw').value;
+  if (!email && !user) { toast('Enter email or username'); return; }
+  const svc = vaultData.services.find(s => s.id === editAccSvcId);
+  if (!svc) return;
+  if (editAccId) {
+    const acc = svc.accounts.find(a => a.id === editAccId);
+    if (acc) { acc.email = email; acc.username = user; acc.password = pw; }
+  } else {
+    svc.accounts.push({ id:uid(), email, username:user, password:pw });
+  }
+  closeModal('modal-acc');
+  saveVault().then(() => { renderVault(); updateStats(); toast('Account saved'); });
+}
+
+function deleteAcc(arg) {
+  const [svcId, accId] = arg.split('|');
+  const svc = vaultData.services.find(s => s.id === svcId);
+  if (svc) svc.accounts = svc.accounts.filter(a => a.id !== accId);
+  saveVault().then(() => { renderVault(); updateStats(); toast('Account deleted'); });
+}
+
+// ═══════════════════════════════════════════════════
+//  NOTES
+// ═══════════════════════════════════════════════════
+function renderNotes() {
+  const el = document.getElementById('noteList');
+  if (!vaultData.notes.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📝</div><div class="empty-msg">No notes yet.<br>Tap + Note to add one.</div></div>`;
+    return;
+  }
+  el.innerHTML = vaultData.notes.map(n => `
+    <div class="note-item" data-draggable="note">
+      <div class="note-title">${esc(n.title)}</div>
+      <div class="note-body">${esc(n.body)}</div>
+      <div class="note-meta">${new Date(n.updated).toLocaleString()}</div>
+      <div class="note-actions">
+        <button class="btn btn-ghost btn-sm"  onclick="openEditNote('${n.id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete('Delete this note?','deleteNote','${n.id}')">🗑</button>
+      </div>
+    </div>
+  `).join('');
+  initNotesDrag();
+}
+
+function openAddNote() {
+  editNoteId = null;
+  document.getElementById('noteModalTitle').textContent = 'Add Note';
+  document.getElementById('noteTitle').value = '';
+  document.getElementById('noteBody').value  = '';
+  openModal('modal-note');
+}
+
+function openEditNote(id) {
+  editNoteId = id;
+  const n = vaultData.notes.find(x => x.id === id);
+  if (!n) return;
+  document.getElementById('noteModalTitle').textContent = 'Edit Note';
+  document.getElementById('noteTitle').value = n.title;
+  document.getElementById('noteBody').value  = n.body;
+  openModal('modal-note');
+}
+
+function saveNote() {
+  const title = document.getElementById('noteTitle').value.trim();
+  const body  = document.getElementById('noteBody').value.trim();
+  if (!title) { toast('Enter a title'); return; }
+  if (editNoteId) {
+    const n = vaultData.notes.find(x => x.id === editNoteId);
+    if (n) { n.title = title; n.body = body; n.updated = Date.now(); }
+  } else {
+    vaultData.notes.unshift({ id:uid(), title, body, created:Date.now(), updated:Date.now() });
+  }
+  closeModal('modal-note');
+  saveVault().then(() => { renderNotes(); updateStats(); toast('Note saved'); });
+}
+
+function deleteNote(id) {
+  vaultData.notes = vaultData.notes.filter(n => n.id !== id);
+  saveVault().then(() => { renderNotes(); updateStats(); toast('Note deleted'); });
+}
+
+// ═══════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════
+function updateStats() {
+  // stats kept in memory for internal use
+}
+
+function openChangePw() {
+  document.getElementById('chpwCur').value = '';
+  document.getElementById('chpwNew').value = '';
+  document.getElementById('chpwCon').value = '';
+  document.getElementById('chpwErr').textContent = '';
+  openModal('modal-chpw');
+}
+
+async function doChangePw() {
+  const cur = document.getElementById('chpwCur').value;
+  const nw  = document.getElementById('chpwNew').value;
+  const con = document.getElementById('chpwCon').value;
+  const err = document.getElementById('chpwErr');
+  err.textContent = '';
+  if (cur !== masterPw) { err.textContent = 'Current password is wrong.'; return; }
+  if (nw.length < 4)    { err.textContent = 'New password must be at least 4 characters.'; return; }
+  if (nw !== con)        { err.textContent = 'Passwords do not match.'; return; }
+  masterPw = nw;
+  await saveVault();
+  closeModal('modal-chpw');
+  toast('Master password changed');
+}
+
+async function exportVault() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) { toast('Nothing to export'); return; }
+  const filename = `vault-backup-${new Date().toISOString().split('T')[0]}.json`;
+  if (window.Android && window.Android.saveToDownloads) {
+    const result = window.Android.saveToDownloads(filename, raw);
+    toast(result || 'Saved to Downloads');
+  } else {
+    // Fallback for non-Android (browser testing)
+    const blob = new Blob([raw], { type:'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Vault exported');
+  }
+}
+
+// ── pending import state
+let _pendingImportData  = null;  // parsed JSON container waiting for password
+let _pendingImportFromLock = false; // true if triggered from lock screen
+
+function importVault(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const container = JSON.parse(ev.target.result);
+      if (!container.v || container.v !== 2) { toast('Invalid or old backup file'); return; }
+      _pendingImportData = container;
+      _pendingImportFromLock = false;
+      document.getElementById('importPwInput').value = '';
+      document.getElementById('importPwErr').textContent = '';
+      openModal('modal-import-pw');
+      setTimeout(() => document.getElementById('importPwInput').focus(), 300);
+    } catch(e) {
+      toast('Invalid backup file');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function restoreFromLockScreen(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const container = JSON.parse(ev.target.result);
+      if (!container.v || container.v !== 2) { toast('Invalid or old backup file'); return; }
+      _pendingImportData = container;
+      _pendingImportFromLock = true;
+      document.getElementById('importPwInput').value = '';
+      document.getElementById('importPwErr').textContent = '';
+      openModal('modal-import-pw');
+      setTimeout(() => document.getElementById('importPwInput').focus(), 300);
+    } catch(e) {
+      toast('Invalid backup file');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+async function doImportWithPassword() {
+  const pw  = document.getElementById('importPwInput').value;
+  const err = document.getElementById('importPwErr');
+  err.textContent = '';
+  if (!pw) { err.textContent = 'Enter the backup password.'; return; }
+  if (!_pendingImportData) { closeModal('modal-import-pw'); return; }
+
+  try {
+    const data = await decryptData(_pendingImportData, pw);
+    vaultData = data;
+    masterPw  = pw;
+    // save re-encrypted with same password
+    const enc = await encryptData(vaultData, masterPw);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(enc));
+    closeModal('modal-import-pw');
+    _pendingImportData = null;
+
+    if (_pendingImportFromLock) {
+      // Show app directly from lock screen
+      showApp();
+      toast('Vault restored successfully');
+    } else {
+      // From settings — lock and re-enter with restored vault
+      renderVault(); renderNotes(); updateStats();
+      toast('Vault restored — please re-enter your password');
+      setTimeout(() => lockApp(), 1500);
+    }
+  } catch(e) {
+    err.textContent = 'Wrong password. Try again.';
+  }
+}
+
+function cancelImport() {
+  _pendingImportData = null;
+  closeModal('modal-import-pw');
+}
+
+
+
+// ═══════════════════════════════════════════════════
+//  CONFIRM DIALOG
+// ═══════════════════════════════════════════════════
+function confirmDelete(msg, fn, arg) {
+  document.getElementById('confirmMsg').textContent = msg;
+  const btn = document.getElementById('confirmOkBtn');
+  btn.onclick = () => {
+    closeModal('modal-confirm');
+    window[fn](arg);
+  };
+  openModal('modal-confirm');
+}
+
+// ═══════════════════════════════════════════════════
+//  MODAL HELPERS
+// ═══════════════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+// close modal on backdrop tap
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+});
+
+// ═══════════════════════════════════════════════════
+//  MISC HELPERS
+// ═══════════════════════════════════════════════════
+function toggleEye(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  inp.type  = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+function copyText(text, label) {
+  navigator.clipboard.writeText(text).then(() => toast(label + ' copied!'));
+}
+
+let _toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG-TO-REORDER
+// ═══════════════════════════════════════════════════
+const LONG_PRESS_MS = 500;
+
+function makeDraggable(container, getItems, onReorder) {
+  let pressTimer = null;
+  let dragging   = null;   // the real DOM element being dragged
+  let ghost      = null;   // floating clone
+  let offsetX    = 0, offsetY = 0;
+  let startX     = 0, startY = 0;
+  let moved      = false;
+
+  function startPress(e, el) {
+    moved = false;
+    const touch = e.touches ? e.touches[0] : e;
+    startX = touch.clientX; startY = touch.clientY;
+    pressTimer = setTimeout(() => {
+      if (moved) return;
+      beginDrag(el, touch);
+    }, LONG_PRESS_MS);
+  }
+
+  function beginDrag(el, touch) {
+    dragging = el;
+    const rect = el.getBoundingClientRect();
+    offsetX = touch.clientX - rect.left;
+    offsetY = touch.clientY - rect.top;
+
+    // create ghost clone
+    ghost = el.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width  = rect.width + 'px';
+    ghost.style.top    = (touch.clientY - offsetY) + 'px';
+    ghost.style.left   = (touch.clientX - offsetX) + 'px';
+    document.body.appendChild(ghost);
+
+    el.classList.add('drag-placeholder');
+
+    // vibrate if available
+    if (navigator.vibrate) navigator.vibrate(40);
+  }
+
+  function onMove(e) {
+    const touch = e.touches ? e.touches[0] : e;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (!dragging && Math.sqrt(dx*dx + dy*dy) > 8) {
+      moved = true;
+      clearTimeout(pressTimer);
+    }
+    if (!dragging) return;
+    e.preventDefault();
+
+    ghost.style.top  = (touch.clientY - offsetY) + 'px';
+    ghost.style.left = (touch.clientX - offsetX) + 'px';
+
+    // highlight insertion target
+    const items = getItems();
+    items.forEach(item => item.classList.remove('drag-over'));
+    const target = getTargetItem(touch, items);
+    if (target && target !== dragging) target.classList.add('drag-over');
+  }
+
+  function onEnd(e) {
+    clearTimeout(pressTimer);
+    if (!dragging) return;
+
+    const touch = e.changedTouches ? e.changedTouches[0] : e;
+    const items = getItems();
+    items.forEach(item => item.classList.remove('drag-over'));
+
+    const target = getTargetItem(touch, items);
+    if (target && target !== dragging) {
+      // find indices
+      const arr = Array.from(items);
+      const fromIdx = arr.indexOf(dragging);
+      const toIdx   = arr.indexOf(target);
+      onReorder(fromIdx, toIdx);
+    }
+
+    dragging.classList.remove('drag-placeholder');
+    ghost.remove();
+    dragging = null;
+    ghost    = null;
+  }
+
+  function getTargetItem(touch, items) {
+    // temporarily hide ghost so elementFromPoint works
+    if (ghost) ghost.style.display = 'none';
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (ghost) ghost.style.display = '';
+    if (!el) return null;
+    for (const item of items) {
+      if (item.contains(el)) return item;
+    }
+    return null;
+  }
+
+  // Attach listeners to container (event delegation)
+  container.addEventListener('touchstart', e => {
+    // find the draggable item
+    const item = e.target.closest('[data-draggable]');
+    if (!item) return;
+    startPress(e, item);
+  }, { passive: true });
+
+  container.addEventListener('touchmove', onMove, { passive: false });
+  container.addEventListener('touchend',  onEnd);
+  container.addEventListener('touchcancel', () => {
+    clearTimeout(pressTimer);
+    if (dragging) dragging.classList.remove('drag-placeholder');
+    if (ghost)    ghost.remove();
+    dragging = null; ghost = null;
+  });
+}
+
+// ── Wire up Services drag
+function initServicesDrag() {
+  const container = document.getElementById('svcList');
+  makeDraggable(
+    container,
+    () => Array.from(container.querySelectorAll('[data-draggable="svc"]')),
+    (from, to) => {
+      const item = vaultData.services.splice(from, 1)[0];
+      vaultData.services.splice(to, 0, item);
+      saveVault().then(() => renderVault());
+    }
+  );
+}
+
+// ── Wire up Notes drag
+function initNotesDrag() {
+  const container = document.getElementById('noteList');
+  makeDraggable(
+    container,
+    () => Array.from(container.querySelectorAll('[data-draggable="note"]')),
+    (from, to) => {
+      const item = vaultData.notes.splice(from, 1)[0];
+      vaultData.notes.splice(to, 0, item);
+      saveVault().then(() => renderNotes());
+    }
+  );
+}
+
+// ── Wire up Accounts drag per service (called after each renderVault)
+function initAccountsDrag() {
+  document.querySelectorAll('[data-svc-accounts]').forEach(container => {
+    const svcId = container.dataset.svcAccounts;
+    makeDraggable(
+      container,
+      () => Array.from(container.querySelectorAll('[data-draggable="acc"]')),
+      (from, to) => {
+        const svc = vaultData.services.find(s => s.id === svcId);
+        if (!svc) return;
+        const item = svc.accounts.splice(from, 1)[0];
+        svc.accounts.splice(to, 0, item);
+        saveVault().then(() => renderVault());
+      }
+    );
+  });
+}
+
+
+init();
+</script>
+</body>
+</html>
