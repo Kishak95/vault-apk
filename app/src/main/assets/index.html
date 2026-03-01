@@ -245,13 +245,6 @@ input[type=range]::-webkit-slider-thumb {
   display:flex; align-items:center; gap:12px;
   padding: 14px 16px; cursor:pointer;
 }
-.svc-icon {
-  width:40px; height:40px; border-radius:12px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-  display:flex; align-items:center; justify-content:center;
-  font-size:18px; flex-shrink:0;
-  box-shadow: 0 2px 8px rgba(124,58,237,0.4);
-}
 .svc-name   { font-size:15px; font-weight:600; flex:1; }
 .svc-count  { font-size:12px; color:var(--text2); }
 .svc-chevron { font-size:12px; color:var(--text2); transition:transform .2s; }
@@ -392,6 +385,10 @@ input[type=range]::-webkit-slider-thumb {
   <div class="lock-input-wrap">
     <input class="lock-input" type="password" id="masterInput" placeholder="Master password…" autocomplete="off">
     <button class="eye-btn" id="lockEye" onclick="toggleLockEye()">👁</button>
+  </div>
+  <div class="lock-input-wrap" id="confirmWrap" style="display:none;">
+    <input class="lock-input" type="password" id="confirmInput" placeholder="Confirm password…" autocomplete="off">
+    <button class="eye-btn" onclick="toggleEyeById('confirmInput', this)">👁</button>
   </div>
   <div class="lock-err" id="lockErr"></div>
   <button class="lock-btn" id="lockBtn" onclick="handleLock()">Unlock Vault</button>
@@ -723,8 +720,15 @@ function init() {
     document.getElementById('lockSub').textContent = 'Create a master password to protect your vault';
     document.getElementById('lockBtn').textContent  = 'Create Vault';
     document.getElementById('restoreBtn').style.display = 'block';
+    document.getElementById('confirmWrap').style.display = 'block';
+    document.getElementById('confirmInput').value = '';
   } else {
+    isNewVault = false;
+    document.getElementById('lockSub').textContent = 'Enter your master password to unlock';
+    document.getElementById('lockBtn').textContent  = 'Unlock Vault';
     document.getElementById('restoreBtn').style.display = 'none';
+    document.getElementById('confirmWrap').style.display = 'none';
+    document.getElementById('confirmInput').value = '';
   }
 }
 
@@ -737,6 +741,8 @@ async function handleLock() {
 
   if (isNewVault) {
     if (pw.length < 4) { err.textContent = 'Password must be at least 4 characters.'; return; }
+    const confirm = document.getElementById('confirmInput').value;
+    if (pw !== confirm) { err.textContent = 'Passwords do not match.'; return; }
     masterPw   = pw;
     vaultData  = { services:[], notes:[] };
     await saveVault();
@@ -766,11 +772,17 @@ function toggleLockEye() {
   inp.type  = inp.type === 'password' ? 'text' : 'password';
 }
 
+function toggleEyeById(id, btn) {
+  const inp = document.getElementById(id);
+  inp.type  = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
 function showApp() {
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
   document.getElementById('masterInput').value = '';
-  renderVault(); renderNotes(); updateStats();
+  renderVault(true); renderNotes(); updateStats();
 }
 
 function lockApp() {
@@ -866,16 +878,18 @@ function fillGenerated() {
 // ═══════════════════════════════════════════════════
 //  VAULT — SERVICES
 // ═══════════════════════════════════════════════════
-function renderVault() {
+function renderVault(collapseAll) {
   const el = document.getElementById('svcList');
+  const openIds = collapseAll ? new Set() : new Set(
+    Array.from(el.querySelectorAll('.svc-item.open')).map(el => el.id.replace('svc-', ''))
+  );
   if (!vaultData.services.length) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">🗄</div><div class="empty-msg">No services yet.<br>Tap + Service to add one.</div></div>`;
     return;
   }
   el.innerHTML = vaultData.services.map(svc => `
-    <div class="svc-item" id="svc-${svc.id}" data-draggable="svc">
+    <div class="svc-item${openIds.has(svc.id) ? ' open' : ''}" id="svc-${svc.id}" data-draggable="svc">
       <div class="svc-header" onclick="toggleSvc('${svc.id}')">
-        <div class="svc-icon">${svcEmoji(svc.name)}</div>
         <div class="svc-name">${esc(svc.name)}</div>
         <div class="svc-count">${svc.accounts.length} acc</div>
         <div class="svc-chevron">▼</div>
@@ -923,21 +937,6 @@ function accHTML(svcId, a) {
 
 function toggleSvc(id) {
   document.getElementById('svc-'+id).classList.toggle('open');
-}
-
-function svcEmoji(name) {
-  const n = name.toLowerCase();
-  if (n.includes('google') || n.includes('gmail')) return '🔵';
-  if (n.includes('facebook') || n.includes('fb'))  return '🔷';
-  if (n.includes('twitter') || n.includes('x.com')) return '🐦';
-  if (n.includes('github'))  return '🐙';
-  if (n.includes('apple'))   return '🍎';
-  if (n.includes('amazon'))  return '📦';
-  if (n.includes('netflix')) return '🎬';
-  if (n.includes('bank') || n.includes('credit')) return '🏦';
-  if (n.includes('game') || n.includes('steam'))  return '🎮';
-  if (n.includes('work') || n.includes('office')) return '💼';
-  return '🔑';
 }
 
 function togglePwVis(id, pw) {
@@ -1263,16 +1262,8 @@ function toggleEye(inputId, btn) {
   btn.textContent = inp.type === 'password' ? '👁' : '🙈';
 }
 
-let _clipTimer;
 function copyText(text, label) {
-  navigator.clipboard.writeText(text).then(() => {
-    toast(label + ' copied! Clears in 30s');
-    clearTimeout(_clipTimer);
-    _clipTimer = setTimeout(() => {
-      navigator.clipboard.writeText('').catch(() => {});
-      toast('Clipboard cleared');
-    }, 30000);
-  });
+  navigator.clipboard.writeText(text).then(() => toast(label + ' copied!'));
 }
 
 let _toastTimer;
